@@ -31,6 +31,12 @@ public class ProductServiceImpl implements ProductService {
                 .category(category)
                 .isAvailable(request.getStockQuantity()>0)
                 .build();
+        if(request.getStockQuantity() < 0){
+            throw new RuntimeException("Stock cannot be negative");
+        }
+        if(request.getPrice() <= 0){
+            throw new RuntimeException("Price must be positive");
+        }
 
         Product savedProduct = productRepository.save(product);
         return mapToResponse(savedProduct);
@@ -95,6 +101,9 @@ public class ProductServiceImpl implements ProductService {
         if(product.getStockQuantity() < quantity){
             throw new RuntimeException("Insufficient stock");
         }
+        if(quantity <= 0){
+            throw new RuntimeException("Quantity must be positive");
+        }
         int newStock = product.getStockQuantity() - quantity;
         product.setStockQuantity(newStock);
 
@@ -125,6 +134,9 @@ public class ProductServiceImpl implements ProductService {
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
+        if(quantity <= 0){
+            throw new RuntimeException("Stock addition must be positive");
+        }
 
         product.setStockQuantity(product.getStockQuantity() + quantity);
 
