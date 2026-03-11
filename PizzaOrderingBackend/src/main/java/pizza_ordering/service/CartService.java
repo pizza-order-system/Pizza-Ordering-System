@@ -19,6 +19,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
 
+
     public void addToCart(User user, AddToCartRequest request) {
 
         Cart cart = cartRepository.findByUser(user)
@@ -31,23 +32,21 @@ public class CartService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        if (product.getStockQuantity() < request.getQuantity()) {
-            throw new RuntimeException("Not enough stock available");
-        }
-
-        Optional<CartItems> existingItem =
+        CartItems existingItem =
                 cartItemRepository.findByCartAndProduct(cart, product);
 
-        if (existingItem.isPresent()) {
+        if(existingItem != null){
 
-            CartItems item = existingItem.get();
-            item.setQuantity(item.getQuantity() + request.getQuantity());
+            existingItem.setQuantity(
+                    existingItem.getQuantity() + request.getQuantity()
+            );
 
-            cartItemRepository.save(item);
+            cartItemRepository.save(existingItem);
 
         } else {
 
             CartItems item = new CartItems();
+
             item.setCart(cart);
             item.setProduct(product);
             item.setQuantity(request.getQuantity());
@@ -56,6 +55,7 @@ public class CartService {
             cartItemRepository.save(item);
         }
     }
+
 
     public List<CartItemResponse> getCart(User user){
 
@@ -82,5 +82,23 @@ public class CartService {
         }
 
         return responses;
+    }
+
+    public CartItems updateCartItem(int cartItemId, int quantity){
+
+        CartItems item = cartItemRepository.findById(cartItemId)
+                .orElseThrow(() -> new RuntimeException("Cart item not found"));
+
+        item.setQuantity(quantity);
+
+        return cartItemRepository.save(item);
+    }
+
+    public void deleteCartItem(int cartItemId){
+
+        CartItems item = cartItemRepository.findById(cartItemId)
+                .orElseThrow(() -> new RuntimeException("Cart item not found"));
+
+        cartItemRepository.delete(item);
     }
 }
