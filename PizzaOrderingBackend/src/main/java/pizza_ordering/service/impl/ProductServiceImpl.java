@@ -3,9 +3,13 @@ package pizza_ordering.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 import pizza_ordering.dto.ProductRequest;
 import pizza_ordering.dto.ProductResponse;
+import pizza_ordering.exception.CategoryNotFoundException;
+import pizza_ordering.exception.InvalidStockException;
+import pizza_ordering.exception.OutOfStockException;
+import pizza_ordering.exception.ProductNotFoundException;
 import pizza_ordering.repository.CategoryRepository;
 import pizza_ordering.repository.ProductRepository;
 import pizza_ordering.service.ProductService;
@@ -15,15 +19,42 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private Product findProductOrThrow(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+    }
+    private Categories findCategoryOrThrow(Long categoryId) {
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException(categoryId));
+    }
+    private ProductResponse mapToResponse(Product product){
+
+        return ProductResponse.builder()
+                .productId(product.getProductId())
+                .productName(product.getProductName())
+                .price(product.getPrice())
+                .stockQuantity(product.getStockQuantity())
+                .isAvailable(product.getIsAvailable())
+                .categoryId(product.getCategory().getCategoryId())
+                .categoryName(product.getCategory().getCategoryName())
+                .build();
+    }
 
     @Override
     public ProductResponse createProduct(ProductRequest request) {
-        Categories category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found with id"));
 
+        if(request.getStockQuantity() < 0){
+            throw new InvalidStockException("Stock cannot be negative");
+        }
+        if(request.getPrice() <= 0){
+            throw new InvalidStockException("Price must be positive");
+        }
+
+        Categories category = findCategoryOrThrow(request.getCategoryId());
         Product product = Product.builder()
                 .productName(request.getProductName())
                 .price(request.getPrice())
@@ -47,8 +78,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductResponse getProductById(Long productId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+        Product product = findProductOrThrow(productId);
 
         return mapToResponse(product);
     }
@@ -56,13 +86,14 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse updateProduct(Long productId, ProductRequest request) {
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        Product product = findProductOrThrow(productId);
+        Categories category = findCategoryOrThrow(request.getCategoryId());
 
         product.setProductName(request.getProductName());
         product.setPrice(request.getPrice());
         product.setStockQuantity(request.getStockQuantity());
         product.setIsAvailable(request.getStockQuantity() > 0);
+        product.setCategory(category);
 
         Product updatedProduct = productRepository.save(product);
         return mapToResponse(updatedProduct);
@@ -70,16 +101,12 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void deleteProduct(Long productId) {
-
-        if(!productRepository.existsById(productId)){
-            throw new RuntimeException("Product not found with id: " + productId);
-        }
-
-        productRepository.deleteById(productId);
+        productRepository.delete(findProductOrThrow(productId));
     }
 
     @Override
     public List<ProductResponse> getProductsByCategory(Long categoryId) {
+        findCategoryOrThrow(categoryId);
 
         return productRepository.findByCategory_CategoryId(categoryId)
                 .stream()
@@ -89,12 +116,17 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void reduceStock(Long productId, Integer quantity) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        Product product = productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+
+        if(quantity <= 0){
+            throw new InvalidStockException("Quantity must be positive");
+        }
 
         if(product.getStockQuantity() < quantity){
-            throw new RuntimeException("Insufficient stock");
+            throw new OutOfStockException("Only " + product.getStockQuantity() + " items left");
         }
+
         int newStock = product.getStockQuantity() - quantity;
         product.setStockQuantity(newStock);
 
@@ -106,35 +138,19 @@ public class ProductServiceImpl implements ProductService {
     }
 
 
-    private ProductResponse mapToResponse(Product product){
-
-        return ProductResponse.builder()
-                .productId(product.getProductId())
-                .productName(product.getProductName())
-                .price(product.getPrice())
-                .stockQuantity(product.getStockQuantity())
-                .isAvailable(product.getIsAvailable())
-                .categoryId(product.getCategory().getCategoryId())
-                .categoryName(product.getCategory().getCategoryName())
-                .build();
-    }
-
-
     @Override
     public ProductResponse addStock(Long productId, Integer quantity) {
-
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+        if(quantity <= 0){
+            throw new InvalidStockException("Stock addition must be positive");
+        }
+        Product product = findProductOrThrow(productId);
 
         product.setStockQuantity(product.getStockQuantity() + quantity);
-
-        if(product.getStockQuantity() > 0){
-            product.setIsAvailable(true);
-        }
+        product.setIsAvailable(true);
 
         Product updated = productRepository.save(product);
 
-        return mapToResponse(updated);
+        return mapToResponse(productRepository.save(product));
     }
 
 }
