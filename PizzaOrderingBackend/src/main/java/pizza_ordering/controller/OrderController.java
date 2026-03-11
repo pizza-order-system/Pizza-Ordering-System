@@ -42,6 +42,14 @@ public class OrderController {
 
     }
 
+    @DeleteMapping("/{orderId}")
+    public String cancelOrder(@PathVariable Long orderId){
+
+        User user = getCurrentUser();
+
+        return orderService.cancelOrder(orderId, user);
+    }
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email).orElseThrow();

@@ -162,4 +162,18 @@ public class OrderService {
         return responses;
     }
 
+    public String cancelOrder(Long orderId, User user){
+
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if(!order.getUser().getUserId().equals(user.getUserId())){
+            throw new RuntimeException("You cannot cancel this order");
+        }
+
+        orderRepository.delete(order);
+
+        return "Order cancelled";
+    }
+
 }

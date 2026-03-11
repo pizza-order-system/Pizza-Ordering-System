@@ -39,6 +39,21 @@ public class CartController {
         return cartService.getCart(user);
     }
 
+    @PutMapping("/update/{cartItemId}")
+    public CartItems updateCartItem(@PathVariable int cartItemId,
+                                    @RequestParam int quantity){
+
+        return cartService.updateCartItem(cartItemId, quantity);
+    }
+
+    @DeleteMapping("/{cartItemId}")
+    public String deleteCartItem(@PathVariable int cartItemId){
+
+        cartService.deleteCartItem(cartItemId);
+
+        return "Cart item removed";
+    }
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email).orElseThrow();
